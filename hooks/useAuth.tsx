@@ -122,6 +122,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const isProfileComplete = !!(data.bio && data.bio.trim()) || !!data.profileSetupComplete;
               setProfileSetupComplete(isProfileComplete);
               console.log('📋 Profile setup complete:', isProfileComplete, 'bio:', !!data.bio, 'explicit:', !!data.profileSetupComplete);
+              
+              // Fix existing profiles that don't have profileSetupComplete field
+              if (!data.hasOwnProperty('profileSetupComplete')) {
+                console.log('🔧 Fixing existing profile - adding profileSetupComplete field');
+                const shouldBeComplete = data.userType === 'fan' || !!(data.bio && data.bio.trim());
+                try {
+                  await updateDoc(doc(db, 'users', user.uid), {
+                    profileSetupComplete: shouldBeComplete,
+                    updatedAt: new Date(),
+                  });
+                  console.log('✅ Fixed existing profile');
+                  setProfileSetupComplete(shouldBeComplete);
+                } catch (fixError) {
+                  console.error('💥 Failed to fix existing profile:', fixError);
+                }
+              }
+              
               break; // Success, exit retry loop
             } else {
               console.log('❌ User profile not found in Firestore - creating minimal profile');
@@ -131,7 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 displayName: user.displayName || user.email?.split('@')[0] || 'User',
                 userType: 'fan', // Default to fan
                 bio: '',
-                profileImageUrl: '',
+                profileImageUrl: user.photoURL || '',
+                profileSetupComplete: true, // Mark as complete for fans
                 createdAt: new Date(),
                 updatedAt: new Date(),
               };
@@ -139,12 +157,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               try {
                 await setDoc(doc(db, 'users', user.uid), minimalProfile);
                 console.log('✅ Created minimal profile for user');
-                // Set the profile in state but mark setup as incomplete
+                // Set the profile in state and mark setup as complete
                 setUserProfile({
                   uid: user.uid,
                   ...minimalProfile,
                 });
-                setProfileSetupComplete(false); // Force profile setup
+                setProfileSetupComplete(true); // Mark as complete for fans
               } catch (createError: any) {
                 console.error('💥 Failed to create minimal profile:', createError);
                 setError('Failed to create user profile. Please try again.');
