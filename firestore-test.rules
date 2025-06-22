@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ULTRA-PERMISSIVE RULES FOR TESTING ONLY
+    // WARNING: This allows all authenticated users to read/write everything
+    // DO NOT USE IN PRODUCTION
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+} 
