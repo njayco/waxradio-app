@@ -5,6 +5,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
@@ -49,10 +51,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileSetupComplete, setProfileSetupComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
+
   useEffect(() => {
     console.log('🔧 Setting up auth state listener...');
     console.log('🔥 Firebase auth object:', !!auth);
     console.log('🔥 Current auth user:', auth.currentUser ? 'User exists' : 'No user');
+    
+    // Check for redirect result first
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('🔄 Got redirect result:', result.user.email);
+          await handleGoogleSignInResult(result);
+        }
+      } catch (error) {
+        console.error('🔄 Redirect result error:', error);
+      }
+    };
+    
+    checkRedirectResult();
     
     // Immediate check of current user
     if (auth.currentUser) {
@@ -226,25 +245,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
+      // Add custom parameters to ensure proper sign-in flow
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       
-      // Check if user profile exists, if not create one
-      const userDoc = await getDoc(doc(db, 'users', result.user.uid));
-      if (!userDoc.exists()) {
-        // For Google sign-in, default to 'fan' user type
-        const userProfile: Omit<UserProfile, 'uid'> = {
-          email: result.user.email || '',
-          displayName: result.user.displayName || '',
-          userType: 'fan',
-          bio: '',
-          profileImageUrl: '',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        await setDoc(doc(db, 'users', result.user.uid), userProfile);
+      let result;
+      
+      try {
+        // Try popup first
+        console.log('🔥 Attempting Google sign-in with popup...');
+        result = await signInWithPopup(auth, provider);
+      } catch (popupError: any) {
+        console.warn('🚨 Popup failed, trying redirect...', popupError.code);
+        
+        // If popup fails due to COOP or other issues, use redirect
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/cancelled-popup-request' ||
+            popupError.message.includes('Cross-Origin-Opener-Policy')) {
+          
+          console.log('🔄 Using redirect method for Google sign-in...');
+          await signInWithRedirect(auth, provider);
+          return; // Redirect will handle the rest
+        }
+        
+        throw popupError;
       }
-    } catch (error) {
+      
+      await handleGoogleSignInResult(result);
+      
+    } catch (error: any) {
+      console.error('🔥 Google sign-in error:', error);
+      // Handle specific popup errors
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked by your browser. Please allow popups for this site.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      }
       throw error;
+    }
+  };
+
+  // Helper function to handle Google sign-in result
+  const handleGoogleSignInResult = async (result: any) => {
+    if (!result?.user) return;
+    
+    // Check if user profile exists, if not create one
+    const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+    if (!userDoc.exists()) {
+      console.log('🆕 Creating new user profile for Google sign-in');
+      // For Google sign-in, default to 'fan' user type
+      const userProfile: Omit<UserProfile, 'uid'> = {
+        email: result.user.email || '',
+        displayName: result.user.displayName || result.user.email?.split('@')[0] || 'Fan',
+        userType: 'fan',
+        bio: '',
+        profileImageUrl: result.user.photoURL || '',
+        profileSetupComplete: false, // Force profile setup for new users
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await setDoc(doc(db, 'users', result.user.uid), userProfile);
+      console.log('✅ New user profile created');
+    } else {
+      console.log('👤 Existing user profile found');
     }
   };
 
