@@ -32,6 +32,18 @@ export default function WaxRadioApp() {
   const { showOnboarding, isLoading: onboardingLoading, completeOnboarding, resetOnboarding } = useOnboarding()
   const { toast } = useToast()
 
+  // Immediate Firebase check on mount
+  useEffect(() => {
+    console.log('🚀 WaxRadioApp mounted');
+    console.log('🔧 Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      hasAuthDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      hasStorageBucket: !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    });
+  }, []);
+
   // Add timeout fallback to prevent infinite loading
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -39,7 +51,7 @@ export default function WaxRadioApp() {
         console.log('⏰ Loading timeout reached - showing auth forms as fallback');
         setLoadingTimeout(true);
       }
-    }, 5000); // 5 second timeout
+    }, 10000); // Increased to 10 seconds to give more time
 
     return () => clearTimeout(timeoutId);
   }, [loading, onboardingLoading]);
@@ -106,14 +118,15 @@ export default function WaxRadioApp() {
     setShowProfileSetup(false)
   }
 
-  // Show loading state
+  // Show loading state with nice animation
   if ((loading || onboardingLoading) && !loadingTimeout) {
     console.log('⏳ Showing loading screen');
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading Wax Radio...</p>
+          <p className="text-lg font-medium">Loading Wax Radio...</p>
+          <p className="text-sm text-muted-foreground mt-2">Setting up your music experience</p>
         </div>
       </div>
     )
@@ -168,7 +181,8 @@ export default function WaxRadioApp() {
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading your profile...</p>
+          <p className="text-lg font-medium">Loading your profile...</p>
+          <p className="text-sm text-muted-foreground mt-2">Getting your music preferences ready</p>
         </div>
       </div>
     )
@@ -420,7 +434,8 @@ export default function WaxRadioApp() {
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-        <p>Setting up your experience...</p>
+        <p className="text-lg font-medium">Setting up your experience...</p>
+        <p className="text-sm text-muted-foreground mt-2">Almost ready</p>
       </div>
     </div>
   )
