@@ -26,10 +26,23 @@ declare global {
 export default function WaxRadioApp() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login")
   const [showProfileSetup, setShowProfileSetup] = useState(false)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
   const { user, userProfile, loading, profileSetupComplete, signOut, error } = useAuth()
   const audioPlayer = useAudioPlayer()
   const { showOnboarding, isLoading: onboardingLoading, completeOnboarding, resetOnboarding } = useOnboarding()
   const { toast } = useToast()
+
+  // Add timeout fallback to prevent infinite loading
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (loading || onboardingLoading) {
+        console.log('⏰ Loading timeout reached - showing auth forms as fallback');
+        setLoadingTimeout(true);
+      }
+    }, 5000); // 5 second timeout
+
+    return () => clearTimeout(timeoutId);
+  }, [loading, onboardingLoading]);
 
   // Enhanced debug logging
   useEffect(() => {
@@ -44,10 +57,17 @@ export default function WaxRadioApp() {
         hasBio: !!userProfile.bio
       } : null,
       loading,
+      loadingTimeout,
       profileSetupComplete,
       showOnboarding,
       error: !!error,
-      onboardingLoading
+      onboardingLoading,
+      firebaseConfig: {
+        hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+        hasAuthDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+        hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        hasStorageBucket: !!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      }
     };
     
     console.log('🎯 App state:', debugInfo);
@@ -62,7 +82,7 @@ export default function WaxRadioApp() {
       console.log('  - Show onboarding:', showOnboarding);
       console.log('  - Loading states:', { loading, onboardingLoading });
     }
-  }, [user, userProfile, loading, profileSetupComplete, showOnboarding, error, onboardingLoading]);
+  }, [user, userProfile, loading, loadingTimeout, profileSetupComplete, showOnboarding, error, onboardingLoading]);
 
   const handleSignOut = async () => {
     try {
@@ -87,7 +107,7 @@ export default function WaxRadioApp() {
   }
 
   // Show loading state
-  if (loading || onboardingLoading) {
+  if ((loading || onboardingLoading) && !loadingTimeout) {
     console.log('⏳ Showing loading screen');
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -113,9 +133,9 @@ export default function WaxRadioApp() {
     )
   }
 
-  // Show authentication forms if not logged in
-  if (!user) {
-    console.log('🔐 Showing auth forms');
+  // Show authentication forms if not logged in OR if loading timed out
+  if (!user || loadingTimeout) {
+    console.log('🔐 Showing auth forms (user:', !!user, 'timeout:', loadingTimeout, ')');
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
         <div className="w-full max-w-md">
