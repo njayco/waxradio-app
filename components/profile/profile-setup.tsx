@@ -60,10 +60,10 @@ export function ProfileSetup({ onComplete }: ProfileSetupProps) {
     setLoading(true);
 
     try {
-      // For now, we'll just update the bio in Firestore
-      // In a full implementation, you'd upload the image to Firebase Storage
+      // Update profile with bio and mark setup as complete
       await updateUserProfile({
         bio: bio.trim(),
+        profileSetupComplete: true,
         // profileImageUrl: uploadedImageUrl // would be set after upload
       });
 
@@ -84,8 +84,23 @@ export function ProfileSetup({ onComplete }: ProfileSetupProps) {
     }
   };
 
-  const skipSetup = () => {
-    onComplete();
+  const skipSetup = async () => {
+    setLoading(true);
+    try {
+      // Even if skipping, mark profile setup as complete
+      await updateUserProfile({
+        profileSetupComplete: true,
+      });
+      onComplete();
+    } catch (error: any) {
+      toast({
+        title: "Setup failed",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
