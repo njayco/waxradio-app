@@ -24,6 +24,12 @@ const requiredEnvVars = [
   'NEXT_PUBLIC_FIREBASE_APP_ID'
 ];
 
+// Debug: Log all environment variables
+console.log('🔍 Environment Variables Debug:');
+requiredEnvVars.forEach(envVar => {
+  console.log(`  ${envVar}: ${process.env[envVar] ? '✅ SET' : '❌ MISSING'}`);
+});
+
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
