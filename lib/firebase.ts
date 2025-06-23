@@ -26,15 +26,17 @@ import { getAnalytics } from 'firebase/analytics';
  * Firebase Configuration Object
  * Contains all Firebase configuration values from environment variables
  * These values are used to initialize the Firebase app
+ * 
+ * For static exports, we need to embed these values directly in the build
  */
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,                    // Firebase API key for authentication
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,            // Domain for Firebase Auth
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,              // Firebase project ID
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,      // Storage bucket for files
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, // Sender ID for messaging
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,                      // Firebase app ID
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,       // Analytics measurement ID (optional)
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBVyh4y9wvllKfdO0K-0YfF4tKweidlnHo",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "wax-radio.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "wax-radio",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "wax-radio.firebasestorage.app",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "881907029843",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:881907029843:web:77af63f60447c06b52b3a6",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-0DFQKQQCXW",
 };
 
 /**
@@ -57,21 +59,27 @@ const requiredEnvVars = [
  * This helps identify missing or incorrect configuration during development
  */
 console.log('🔍 Environment Variables Debug:');
+console.log('📁 Environment files loaded:', {
+  hasEnvLocal: !!process.env.NODE_ENV === 'development' && !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  hasEnv: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  nodeEnv: process.env.NODE_ENV
+});
+
 requiredEnvVars.forEach(envVar => {
   console.log(`  ${envVar}: ${process.env[envVar] ? '✅ SET' : '❌ MISSING'}`);
 });
 
 /**
  * Check for Missing Environment Variables
- * Filters out any missing required environment variables and throws an error
- * if any are missing to prevent Firebase initialization with invalid config
+ * Filters out any missing required environment variables and logs warnings
+ * but doesn't throw errors since we have fallback values for production
  */
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingEnvVars);
-  console.error('💡 Please create a .env.local file with your Firebase configuration');
-  throw new Error(`Missing Firebase environment variables: ${missingEnvVars.join(', ')}`);
+  console.warn('⚠️ Missing environment variables:', missingEnvVars);
+  console.warn('💡 Using fallback values for production build');
+  console.warn('💡 For development, create a .env.local file with your Firebase configuration');
 }
 
 /**
