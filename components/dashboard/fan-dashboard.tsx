@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrackCard } from '@/components/music/track-card';
 import { PlaylistCreator } from '@/components/playlist/playlist-creator';
-import { TrackUpload } from '@/components/upload/track-upload';
 import { useMusic } from '@/hooks/useMusic';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { Heart, Music, Play, TrendingUp, Clock, Star, Upload } from 'lucide-react';
@@ -107,11 +106,10 @@ export function FanDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="discover">Discover</TabsTrigger>
           <TabsTrigger value="playlists">My Playlists</TabsTrigger>
           <TabsTrigger value="trending">Trending</TabsTrigger>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
         </TabsList>
 
         {/* Discover Tab */}
@@ -198,54 +196,59 @@ export function FanDashboard() {
           ) : (
             <div className="space-y-4">
               {sortedTracks.slice(0, 10).map((track, index) => (
-                <Card key={track.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-red-500 to-yellow-500 text-white font-bold text-sm">
-                        {index + 1}
+                <div key={track.id} className="flex items-center gap-4 p-4 rounded-lg bg-muted/20">
+                  <div className="text-2xl font-bold text-muted-foreground w-8">#{index + 1}</div>
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                    {track.artwork ? (
+                      <img
+                        src={track.artwork}
+                        alt={track.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-red-500 to-yellow-500 flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {track.title.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium">{track.title}</h3>
-                        <p className="text-sm text-muted-foreground">{track.artist}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{track.heatScore}°</p>
-                          <p className="text-xs text-muted-foreground">Heat</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleTrackPlay(track)}
-                        >
-                          <Play className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium">{track.title}</h4>
+                    <p className="text-sm text-muted-foreground">{track.artist}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-red-500">{track.heatScore}°</p>
+                    <p className="text-xs text-muted-foreground">Heat</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleTrackPlay(track)}
+                  >
+                    <Play className="h-4 w-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
         </TabsContent>
-
-        {/* Upload Tab */}
-        <TabsContent value="upload" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Upload Music</h2>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Upload className="h-4 w-4" />
-              <span>Share your tracks with the community</span>
-            </div>
-          </div>
-          
-          <Card>
-            <CardContent className="p-6">
-              <TrackUpload />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Artist-Only Features Locked Section */}
+      <Card className="border-dashed border-muted-foreground/30">
+        <CardContent className="p-8 text-center">
+          <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">Artist-Only Features</h3>
+          <p className="text-muted-foreground mb-4">
+            Upload tracks and access music analytics are available exclusively for artist accounts.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Music className="h-4 w-4" />
+            <span>Switch to an artist account to unlock these features</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

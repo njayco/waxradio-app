@@ -1,3 +1,22 @@
+/**
+ * Authentication Hook and Context Provider
+ * 
+ * This module provides comprehensive authentication functionality for the WaxRadio application.
+ * It manages user authentication state, user profiles, and provides authentication methods
+ * using Firebase Authentication and Firestore for profile data.
+ * 
+ * Features:
+ * - Email/password authentication
+ * - Google OAuth authentication
+ * - User profile management
+ * - Profile setup completion tracking
+ * - Error handling and loading states
+ * - Automatic profile creation for new users
+ * 
+ * The hook uses React Context to provide authentication state throughout the app
+ * and includes retry logic for Firestore operations to handle network issues.
+ */
+
 "use client"
 
 import { useState, useEffect, createContext, useContext } from 'react';
@@ -15,50 +34,87 @@ import {
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
+/**
+ * User type enumeration
+ * Defines the two types of users in the system
+ */
 export type UserType = 'artist' | 'fan';
 
+/**
+ * User Profile Interface
+ * Defines the structure of user profile data stored in Firestore
+ */
 export interface UserProfile {
-  uid: string;
-  email: string;
-  displayName: string;
-  userType: UserType;
-  bio?: string;
-  profileImageUrl?: string;
-  profileSetupComplete?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  uid: string;                    // Firebase Auth UID
+  email: string;                  // User's email address
+  displayName: string;            // User's display name
+  userType: UserType;             // Type of user (artist or fan)
+  bio?: string;                   // Optional user biography
+  profileImageUrl?: string;       // Optional profile image URL
+  profileSetupComplete?: boolean; // Whether profile setup is complete
+  onboarded?: boolean;            // Whether user has completed onboarding
+  createdAt: Date;                // Account creation timestamp
+  updatedAt: Date;                // Last update timestamp
 }
 
+/**
+ * Authentication Context Type
+ * Defines the interface for the authentication context
+ */
 interface AuthContextType {
-  user: FirebaseUser | null;
-  userProfile: UserProfile | null;
-  loading: boolean;
-  profileSetupComplete: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string, userType: UserType) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signOut: () => Promise<void>;
-  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
-  error: string | null;
+  user: FirebaseUser | null;                                    // Firebase Auth user object
+  userProfile: UserProfile | null;                              // User profile data
+  loading: boolean;                                             // Loading state
+  profileSetupComplete: boolean;                                // Profile setup completion status
+  signIn: (email: string, password: string) => Promise<void>;   // Email/password sign in
+  signUp: (email: string, password: string, displayName: string, userType: UserType) => Promise<void>; // User registration
+  signInWithGoogle: () => Promise<void>;                        // Google OAuth sign in
+  signOut: () => Promise<void>;                                 // Sign out
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>; // Update profile
+  error: string | null;                                         // Error state
 }
 
+// Create React Context for authentication state
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * AuthProvider Component
+ * 
+ * Provides authentication context to the entire application.
+ * Manages authentication state, user profiles, and provides authentication methods.
+ * 
+ * State Management:
+ * - user: Firebase Auth user object
+ * - userProfile: User profile data from Firestore
+ * - loading: Loading state for auth operations
+ * - profileSetupComplete: Whether user has completed profile setup
+ * - error: Error messages for failed operations
+ * 
+ * @param children - React components to be wrapped with auth context
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Authentication state
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileSetupComplete, setProfileSetupComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
-
+  /**
+   * Main authentication state listener
+   * Sets up Firebase Auth state listener and handles user profile management
+   * 
+   * New State Flow:
+   * 1. After successful login, redirect to ProfileSetupState regardless of role
+   * 2. After profile setup, show OnboardingState only for first-time users
+   * 3. Finally, show DashboardState for all users
+   */
   useEffect(() => {
     console.log('🔧 Setting up auth state listener...');
     console.log('🔥 Firebase auth object:', !!auth);
     console.log('🔥 Current auth user:', auth.currentUser ? 'User exists' : 'No user');
     
-    // Check for redirect result first
+    // Check for redirect result from Google OAuth
     const checkRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
@@ -73,22 +129,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     checkRedirectResult();
     
-    // Immediate check of current user
+    // Immediate check of current user to avoid loading delay
     if (auth.currentUser) {
       console.log('🚀 Found existing user, processing immediately');
-      // Process the existing user immediately
       setUser(auth.currentUser);
       setLoading(false);
     }
     
-    // Set up a timeout to prevent infinite loading
+    // Timeout fallback to prevent infinite loading
     const timeoutId = setTimeout(() => {
       console.log('⏰ Auth timeout reached, setting loading to false');
       if (loading) {
         setLoading(false);
       }
-    }, 3000); // Reduced to 3 seconds
+    }, 3000); // 3 second timeout
     
+    // Set up Firebase Auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('🔥 Auth state changed:', user ? `User logged in (${user.uid})` : 'No user');
       clearTimeout(timeoutId); // Clear timeout since auth state changed
@@ -96,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       
       if (user) {
-        // Retry logic for Firestore connection
+        // Retry logic for Firestore connection to handle network issues
         let retryCount = 0;
         const maxRetries = 3;
         
@@ -115,25 +171,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 userType: data.userType,
                 bio: data.bio || '',
                 profileImageUrl: data.profileImageUrl || '',
+                profileSetupComplete: data.profileSetupComplete || false,
+                onboarded: data.onboarded || false,
                 createdAt: data.createdAt.toDate(),
                 updatedAt: data.updatedAt.toDate(),
               });
-              // Profile is complete if it has a bio OR is explicitly marked as complete
-              const isProfileComplete = !!(data.bio && data.bio.trim()) || !!data.profileSetupComplete;
-              setProfileSetupComplete(isProfileComplete);
-              console.log('📋 Profile setup complete:', isProfileComplete, 'bio:', !!data.bio, 'explicit:', !!data.profileSetupComplete);
               
-              // Fix existing profiles that don't have profileSetupComplete field
-              if (!data.hasOwnProperty('profileSetupComplete')) {
-                console.log('🔧 Fixing existing profile - adding profileSetupComplete field');
-                const shouldBeComplete = data.userType === 'fan' || !!(data.bio && data.bio.trim());
+              // NEW STATE FLOW LOGIC:
+              // After successful login, check profile setup completion first
+              if (!data.profileSetupComplete) {
+                console.log('📋 User needs profile setup - redirecting to ProfileSetupState');
+                setProfileSetupComplete(false);
+              } else if (!data.onboarded) {
+                console.log('🎓 User needs onboarding - redirecting to OnboardingState');
+                setProfileSetupComplete(true);
+              } else {
+                console.log('✅ User is fully set up - redirecting to DashboardState');
+                setProfileSetupComplete(true);
+              }
+              
+              // Fix existing profiles that don't have profileSetupComplete or onboarded fields
+              const needsUpdate = !data.hasOwnProperty('profileSetupComplete') || !data.hasOwnProperty('onboarded');
+              if (needsUpdate) {
+                console.log('🔧 Fixing existing profile - adding missing fields');
                 try {
-                  await updateDoc(doc(db, 'users', user.uid), {
-                    profileSetupComplete: shouldBeComplete,
-                    updatedAt: new Date(),
-                  });
+                  const updateData: any = { updatedAt: new Date() };
+                  
+                  if (!data.hasOwnProperty('profileSetupComplete')) {
+                    // For existing users, determine if profile setup is complete based on bio
+                    const shouldBeComplete = data.userType === 'fan' || !!(data.bio && data.bio.trim());
+                    updateData.profileSetupComplete = shouldBeComplete;
+                    console.log('🔧 Setting profileSetupComplete to:', shouldBeComplete);
+                  }
+                  
+                  if (!data.hasOwnProperty('onboarded')) {
+                    // For existing users, assume they've been onboarded
+                    updateData.onboarded = true;
+                    console.log('🔧 Setting onboarded to true for existing user');
+                  }
+                  
+                  await updateDoc(doc(db, 'users', user.uid), updateData);
                   console.log('✅ Fixed existing profile');
-                  setProfileSetupComplete(shouldBeComplete);
+                  
+                  // Update local state with fixed values
+                  if (updateData.hasOwnProperty('profileSetupComplete')) {
+                    setProfileSetupComplete(updateData.profileSetupComplete);
+                  }
                 } catch (fixError) {
                   console.error('💥 Failed to fix existing profile:', fixError);
                 }
@@ -149,7 +232,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 userType: 'fan', // Default to fan
                 bio: '',
                 profileImageUrl: user.photoURL || '',
-                profileSetupComplete: true, // Mark as complete for fans
+                profileSetupComplete: false, // Force profile setup for all users
+                onboarded: false, // Force onboarding for new users
                 createdAt: new Date(),
                 updatedAt: new Date(),
               };
@@ -157,12 +241,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               try {
                 await setDoc(doc(db, 'users', user.uid), minimalProfile);
                 console.log('✅ Created minimal profile for user');
-                // Set the profile in state and mark setup as complete
+                // Set the profile in state and mark setup as incomplete
                 setUserProfile({
                   uid: user.uid,
                   ...minimalProfile,
                 });
-                setProfileSetupComplete(true); // Mark as complete for fans
+                setProfileSetupComplete(false); // Force profile setup
               } catch (createError: any) {
                 console.error('💥 Failed to create minimal profile:', createError);
                 setError('Failed to create user profile. Please try again.');
@@ -250,6 +334,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userType,
         bio: '',
         profileImageUrl: '',
+        profileSetupComplete: false, // Force profile setup for all new users
+        onboarded: false, // Force onboarding for all new users
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -320,6 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         bio: '',
         profileImageUrl: result.user.photoURL || '',
         profileSetupComplete: false, // Force profile setup for new users
+        onboarded: false, // Force onboarding for new users
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -358,14 +445,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
       
-      // Mark profile setup as complete if bio is provided or explicitly set
-      if (updates.bio && updates.bio.trim()) {
-        setProfileSetupComplete(true);
-      }
-      
-      // Allow explicit profile setup completion
+      // Handle profile setup completion
       if (updates.hasOwnProperty('profileSetupComplete')) {
         setProfileSetupComplete(!!updates.profileSetupComplete);
+        console.log('📋 Profile setup completion updated:', !!updates.profileSetupComplete);
+      }
+      
+      // Handle onboarding completion
+      if (updates.hasOwnProperty('onboarded')) {
+        console.log('🎓 Onboarding completion updated:', !!updates.onboarded);
+      }
+      
+      // Mark profile setup as complete if bio is provided (legacy support)
+      if (updates.bio && updates.bio.trim() && !updates.hasOwnProperty('profileSetupComplete')) {
+        setProfileSetupComplete(true);
+        console.log('📋 Profile setup marked complete due to bio update');
       }
     } catch (error) {
       throw error;

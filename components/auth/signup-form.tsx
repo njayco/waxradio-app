@@ -57,12 +57,17 @@ export function SignUpForm({ onSwitchToLogin }: SignUpFormProps) {
       console.log('Calling signUp function...');
       await signUp(email, password, displayName, userType);
       console.log('SignUp successful');
-      setDebugInfo('Account created successfully!');
+      setDebugInfo('Account created successfully! Redirecting to profile setup...');
       
       toast({
         title: "Welcome to Wax Radio!",
-        description: `Successfully created your ${userType} account.`,
+        description: `Successfully created your ${userType} account. Let's set up your profile!`,
       });
+
+      // Step 7: Redirect to ProfileSetupState after successful signup
+      // The auth listener will automatically handle the redirect based on the new state flow
+      console.log('✅ Signup complete, user will be redirected to ProfileSetupState');
+      
     } catch (error: any) {
       console.error('SignUp error:', error);
       setDebugInfo(`Error: ${error.message || error.code || 'Unknown error'}`);
